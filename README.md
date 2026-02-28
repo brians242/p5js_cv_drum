@@ -8,7 +8,7 @@ A little project that lets you play drums with your body. It uses your webcam to
 
 There are two parts:
 
-- **`server.py`** opens your webcam, runs pose detection on each frame, and sends your body landmark positions to the browser over a WebSocket.
+- **`main.py`** opens your webcam, runs pose detection on each frame, and sends your body landmark positions to the browser over a WebSocket.
 - **`index.html`** receives those landmarks, draws your skeleton on screen, listens for wrist strikes, plays sounds, and handles the looping.
 
 ---
@@ -51,7 +51,7 @@ The indicator in the top-right corner shows what mode you're in:
 
 ## Code walkthrough
 
-### server.py
+### main.py
 
 **Model download** — At the top, the script checks if `pose_landmarker.task` exists locally and downloads it from Google if not. This only happens once.
 
@@ -93,14 +93,14 @@ A few things you might want to adjust:
 
 - **`STRIKE_THRESHOLD`** (default `18`) — how fast your wrist needs to move downward to count as a hit. Lower = more sensitive.
 - **`RECORD_DURATION`** (default `4000`) — loop length in milliseconds.
-- **`cv2.VideoCapture(0)`** in `server.py` — change `0` to `1` or `2` if you have multiple cameras and it's picking up the wrong one.
+- **`cv2.VideoCapture(0)`** in `main.py` — change `0` to `1` or `2` if you have multiple cameras and it's picking up the wrong one.
 
 ---
 
 ## Troubleshooting
 
 **Stuck on "Move to begin..."**
-Make sure `server.py` is actually running. Also check that your upper body is in frame — it needs to see your shoulders, elbows, and wrists.
+Make sure `main.py` is actually running. Also check that your upper body is in frame — it needs to see your shoulders, elbows, and wrists.
 
 **No sound**
 Click on the canvas first. Browsers block audio until there's been a user interaction.
