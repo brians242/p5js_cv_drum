@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/addons/p5.sound.min.js"></script>
+</head>
+<body>
+<script>
+let landmarks = [];
+let ws;
+
+let synth;
+
+let leftPrevY = null;
+let rightPrevY = null;
+
+let recordBuffer = [];
+let mirrorBuffer = [];
+
+let recordingStart = 0;
+let isRecording = true;
+
+const RECORD_DURATION = 4000;
+const STRIKE_THRESHOLD = 18;
+
+// Define drum area at the bottom
+let drumZone = {
+  x: 0,
+  y: 0,
+  w: 0,
+  h: 200
+};
+
+const CONNECTIONS = [
+  [11,12],[11,13],[13,15],[12,14],[14,16],
+  [11,23],[12,24],[23,24],
+  [23,25],[25,27],[24,26],[26,28]
+];
+
+function connect() {
+  ws = new WebSocket("ws://localhost:8765");
+
+  ws.onmessage = (e) => {
+    try {
+      let data = JSON.parse(e.data);
+      if (Array.isArray(data)) landmarks = data;
+    } catch(err){}
+  };
+
+  ws.onclose = () => {
+    setTimeout(connect, 1000);
+  };
+}
+
+function setup() {
+  createCanvas(windowWidth, windowHeight);
+  connect();
+  synth = new p5.MonoSynth();
+
+  // Setup drum zone width and position
+  drumZone.x = width * 0.25;
+  drumZone.w = width * 0.5;
+  drumZone.y = height - drumZone.h;
+}
+
+function mousePressed(){
+  userStartAudio();
+  getAudioContext().resume();
+}
+
+function windowResized() {
+  resizeCanvas(windowWidth, windowHeight);
+  drumZone.x = width * 0.25;
+  drumZone.w = width * 0.5;
+  drumZone.y = height - drumZone.h;
+}
+
+function playDrum(volume=10) {
+  synth.play("C2", volume, 0, 0.08);
+}
+
+function handleWrist(wrist, prevY) {
+  if (!wrist) return prevY;
+
+  let x = (1 - wrist.x) * width;
+  let y = wrist.y * height;
+
+  fill(255,100,100);
+  noStroke();
+  ellipse(x,y,16,16);
+
+  // Only strike if wrist enters the drum zone
+  if (prevY !== null && y - prevY > STRIKE_THRESHOLD &&
+      x >= drumZone.x && x <= drumZone.x + drumZone.w &&
+      y >= drumZone.y && y <= drumZone.y + drumZone.h) {
+    let now = millis();
+    playDrum(0.9);
+
+    if (isRecording) {
+      recordBuffer.push(now - recordingStart);
+    }
+  }
+
+  return y;
+}
+
+function updateRecording() {
+  let now = millis();
+
+  if (isRecording && now - recordingStart > RECORD_DURATION) {
+    mirrorBuffer = [...recordBuffer];
+    recordBuffer = [];
+    recordingStart = now;
+    isRecording = false;
+  }
+
+  if (!isRecording && now - recordingStart > RECORD_DURATION) {
+    recordingStart = now;
+    isRecording = true;
+  }
+}
+
+function playMirror() {
+  if (isRecording) return;
+
+  let elapsed = millis() - recordingStart;
+
+  for (let i = 0; i < mirrorBuffer.length; i++) {
+    if (abs(elapsed - mirrorBuffer[i]) < 20) {
+      playDrum(0.5);
+    }
+  }
+}
+
+function drawSkeleton() {
+  stroke(0,255,100);
+  strokeWeight(4);
+
+  for (let [a,b] of CONNECTIONS) {
+    let la = landmarks[a];
+    let lb = landmarks[b];
+    if (!la || !lb) continue;
+
+    line(
+      (1 - la.x) * width, la.y * height,
+      (1 - lb.x) * width, lb.y * height
+    );
+  }
+
+  fill(255,0,100);
+  noStroke();
+  for (let l of landmarks) {
+    ellipse(
+      (1 - l.x) * width,
+      l.y * height,
+      10,10
+    );
+  }
+}
+
+function drawDrumZone() {
+  fill(0,0,255,50);
+  stroke(0,0,255);
+  strokeWeight(2);
+  rect(drumZone.x, drumZone.y, drumZone.w, drumZone.h);
+  fill(255);
+  textAlign(CENTER,CENTER);
+  textSize(20);
+  text("DRUM ZONE", drumZone.x + drumZone.w/2, drumZone.y + drumZone.h/2);
+}
+
+function draw() {
+  background(0);
+
+  if (!Array.isArray(landmarks) || landmarks.length < 33) {
+    fill(255);
+    textAlign(CENTER);
+    text("Move to begin...", width/2, height/2);
+    return;
+  }
+
+  updateRecording();
+  playMirror();
+
+  drawSkeleton();
+
+  let leftWrist = landmarks[15];
+  let rightWrist = landmarks[16];
+
+  leftPrevY = handleWrist(leftWrist, leftPrevY);
+  rightPrevY = handleWrist(rightWrist, rightPrevY);
+
+  drawDrumZone();
+
+  // Recording state indicator
+  fill(isRecording ? "red" : "blue");
+  ellipse(width - 40, 40, 20, 20);
+
+  fill(255);
+  textAlign(RIGHT);
+  text(isRecording ? "Recording Self" : "Mirror Self", width - 60, 45);
+}
+</script>
+</body>
+</html>
